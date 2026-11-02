@@ -1,0 +1,29 @@
+<!doctype html><html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>60 € Challenge</title><style>:root{font-family:system-ui,-apple-system,sans-serif;color:#1b2936;background:#f5f7fa}*{box-sizing:border-box}main{max-width:620px;margin:5vh auto;padding:26px;background:white;border-radius:20px;box-shadow:0 12px 40px #1232}h1{font-size:2rem;margin:0 0 12px}h2{font-size:1.3rem}p{line-height:1.6}.muted{color:#637184}.panel{background:#f2f5f8;padding:20px;border-radius:14px;margin:16px 0}.choice{border:1px solid #cdd5df;padding:18px;border-radius:14px;margin:12px 0}.choice strong{display:block;margin-bottom:7px}button{background:#173b59;color:white;border:0;border-radius:10px;padding:13px 20px;cursor:pointer;font-weight:700;font-size:1rem}button:disabled{opacity:.5;cursor:not-allowed}.choice button{width:100%;margin-top:12px}label{display:block;margin:10px 0}select{padding:10px;width:100%;border:1px solid #aab6c3;border-radius:8px}small{color:#637184}#status{color:#a33}.hidden{display:none}</style></head><body><main><div id="intro"><h1>🎲 60 € Challenge</h1><p>Tento dotazník je súčasťou univerzitného výskumu. Vyplnenie trvá približne 2 minúty. Vaše odpovede sú anonymné a budú použité výlučne na výskumné účely.<br><br>Neexistujú správne ani nesprávne odpovede.</p><div class="panel"><p>Účasť je dobrovoľná, anonymná a určená osobám vo veku 18+. Zaznamenáme pridelenú verziu hry, vašu voľbu a nepovinnú vekovú kategóriu a údaj o pohlaví. Výsledky použijeme na študentský výskum. Účasť môžete ukončiť pred odoslaním voľby. Virtuálne peniaze nemajú reálnu hodnotu.</p><label><input id="consent" type="checkbox"> Súhlasím s účasťou a mám aspoň 18 rokov.</label></div><button id="start">Začať</button></div><div id="decision" class="hidden"><h1>💶 Váš rozpočet: 60 €</h1><p>Predstavte si, že ste na víkendovom výlete a na posledný deň máte vyčlenený rozpočet 60 €. Vyskytne sa však neočakávaná situácia, ktorá môže ovplyvniť, koľko z tejto sumy vám zostane. Máte na výber z dvoch možností:</p><div class="choice"><strong>Možnosť A</strong><span id="safeText"></span><button data-choice="A">Vyberám A</button></div><div class="choice"><strong>Možnosť B</strong><span id="riskText"></span><button data-choice="B">Vyberám B</button></div><small>Vyberte iba jednu možnosť. Po potvrdení ju nemožno zmeniť.</small></div><div id="followup" class="hidden"><h1>Takmer hotovo</h1><p>Voľba je zaznamenaná v tejto relácii. Vyberte pohlavie, prípadne doplňte vekovú kategóriu, a odošlite výsledok.</p><label>Veková kategória <select id="age"><option value="">Nechcem uviesť</option><option>18–24</option><option>25–34</option><option>35–44</option><option>45–54</option><option>55–64</option><option>65+</option></select></label><label>Pohlavie <select id="gender" required><option value="" selected disabled>Vyberte pohlavie</option><option value="Žena">Žena</option><option value="Muž">Muž</option></select></label><button id="submit">Odoslať rozhodnutie</button><p id="status" role="status"></p></div><div id="result" class="hidden"><h1>🏁 Koniec hry</h1><p id="resultText"></p><p>Ďakujeme za účasť. Rozhodnutie bolo uložené.</p><small>Táto hra skúma, či formulácia rovnakého finančného rozhodnutia mení ochotu riskovať.</small></div><div id="already" class="hidden"><h1>Ďakujeme</h1><p>Na tomto zariadení už bola zaznamenaná účasť v hre.</p></div></main><script>
+// Pred publikovaním nastavte URL nasadenej Google Apps Script webovej aplikácie.
+const ENDPOINT='https://script.google.com/macros/s/AKfycbxT5vJifSyuMWKnMTut6pIcjmqoe_gWICFK69Z_HDpWcAOXj_V9di7L6zPEu-XTEj-ALA/exec';
+const $=id=>document.getElementById(id);
+const show=id=>['intro','decision','followup','result','already'].forEach(x=>$(x).classList.toggle('hidden',x!==id));
+const uuid=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random();
+let assignment=null,choice=null;
+if(localStorage.getItem('framing_completed'))show('already');
+$('start').onclick=()=>{if(!$('consent').checked){alert('Na účasť je potrebný dobrovoľný súhlas a vek 18+.');return;}
+// Randomizácia pri začiatku hry, nie pri každom načítaní.
+assignment=crypto.getRandomValues(new Uint32Array(1))[0]%2===0?'GAIN':'LOSS';
+$('safeText').textContent=assignment==='GAIN'?'Určite vám zostane 30 €.':'Určite stratíte 30 €.';
+$('riskText').textContent=assignment==='GAIN'?'50 % šanca, že vám zostane všetkých 60 €, a 50 % šanca, že vám nezostane nič.':'50 % šanca, že nestratíte nič, a 50 % šanca, že stratíte všetkých 60 €.';
+show('decision');};
+document.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>{choice=b.dataset.choice;show('followup')});
+$('submit').onclick=async()=>{if(!choice||!assignment)return; if(!$('gender').value){$('status').textContent='Vyberte, prosím, pohlavie.';return;} if(!ENDPOINT.startsWith('https://')){$('status').textContent='Administrátor ešte nenastavil ukladanie odpovedí.';return;}
+$('submit').disabled=true;$('status').textContent='Ukladám...';
+const id=uuid(); const payload={id,group:assignment,choice,risk:choice==='B'?1:0,age:$('age').value,gender:$('gender').value};
+try{
+// Apps Script CORS: jednoduchá text/plain POST požiadavka, odpoveď môže byť presmerovaná.
+const res=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),redirect:'follow'});
+if(!res.ok)throw Error('HTTP '+res.status);
+const data=await res.json();if(!data.ok)throw Error(data.error||'Záznam sa nepotvrdil');
+localStorage.setItem('framing_completed','1');
+const result=choice==='A'?30:(crypto.getRandomValues(new Uint32Array(1))[0]%2===0?60:0);
+$('resultText').textContent='Váš výsledný virtuálny zostatok je '+result+' €.';show('result');
+}catch(e){$('status').textContent='Uloženie sa nepodarilo. Skúste to znova. '+e.message;$('submit').disabled=false;}
+};
+</script></body></html>
